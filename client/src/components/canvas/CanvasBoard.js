@@ -287,8 +287,7 @@ const CanvasBoardContent = () => {
     };
 
     const handleCardDelete = async (cardId) => {
-        if (!window.confirm('Delete this card?')) return;
-
+        // Note: confirmation is already handled by the calling component (CardModal)
         try {
             await cardsAPI.deleteCard(cardId);
             setCards(prev => prev.filter(card => card.id !== cardId));

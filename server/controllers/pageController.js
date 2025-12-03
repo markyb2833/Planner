@@ -249,6 +249,12 @@ const updatePageDefaults = async (req, res) => {
             return res.status(400).json({ error: 'No fields to update' });
         }
 
+        // First, ensure page_defaults row exists (for older pages)
+        await pool.query(
+            'INSERT IGNORE INTO page_defaults (page_id) VALUES (?)',
+            [id]
+        );
+
         values.push(id);
 
         await pool.query(
