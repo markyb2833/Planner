@@ -6,7 +6,54 @@ require('dotenv').config();
  */
 const setupSocketHandlers = (io) => {
     // In-memory storage for active users per page
-    const activeUsersPerPage = new Map(); // pageId -> Map of userId -> { username, socketId }
+    const activeUsersPerPage = new Map(); // pageId -> Map of userId -> { username, socketId, lastHeartbeat }
+
+    // Configure socket.io with shorter timeouts for faster disconnect detection
+    io.engine.on("connection", (rawSocket) => {
+        rawSocket.on("heartbeat", () => {
+            // Update heartbeat timestamp when we receive a ping
+            const socket = io.sockets.sockets.get(rawSocket.id);
+            if (socket && socket.currentPageId && socket.userId) {
+                const pageUsers = activeUsersPerPage.get(socket.currentPageId);
+                if (pageUsers && pageUsers.has(socket.userId)) {
+                    const user = pageUsers.get(socket.userId);
+                    user.lastHeartbeat = Date.now();
+                }
+            }
+        });
+    });
+
+    // Periodic cleanup of stale connections (every 10 seconds)
+    setInterval(() => {
+        const now = Date.now();
+        const staleTimeout = 30000; // 30 seconds without heartbeat = stale
+
+        activeUsersPerPage.forEach((users, pageId) => {
+            const staleUsers = [];
+            users.forEach((user, userId) => {
+                if (now - user.lastHeartbeat > staleTimeout) {
+                    staleUsers.push({ userId, username: user.username });
+                    users.delete(userId);
+                }
+            });
+
+            // Clean up empty page entries
+            if (users.size === 0) {
+                activeUsersPerPage.delete(pageId);
+            }
+
+            // Broadcast updated active users if anyone was removed
+            if (staleUsers.length > 0) {
+                const activeUsers = Array.from(users.values()).map(u => ({
+                    userId: u.userId,
+                    username: u.username
+                }));
+                io.to(`page-${pageId}`).emit('active-users', activeUsers);
+
+                console.log(`Removed ${staleUsers.length} stale user(s) from page ${pageId}`);
+            }
+        });
+    }, 10000); // Check every 10 seconds
 
     // Middleware to authenticate socket connections
     io.use((socket, next) => {
@@ -46,7 +93,7 @@ const setupSocketHandlers = (io) => {
             activeUsersPerPage.set(pageId, new Map());
         }
         const pageUsers = activeUsersPerPage.get(pageId);
-        pageUsers.set(userId, { userId, username, socketId });
+        pageUsers.set(userId, { userId, username, socketId, lastHeartbeat: Date.now() });
     };
 
     /**
@@ -78,6 +125,19 @@ const setupSocketHandlers = (io) => {
 
     io.on('connection', (socket) => {
         console.log(`User connected: ${socket.username} (${socket.userId})`);
+
+        /**
+         * Handle heartbeat to update last activity timestamp
+         */
+        socket.on('heartbeat', () => {
+            if (socket.currentPageId && socket.userId) {
+                const pageUsers = activeUsersPerPage.get(socket.currentPageId);
+                if (pageUsers && pageUsers.has(socket.userId)) {
+                    const user = pageUsers.get(socket.userId);
+                    user.lastHeartbeat = Date.now();
+                }
+            }
+        });
 
         /**
          * Join a page room

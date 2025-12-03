@@ -93,11 +93,23 @@ const Dashboard = () => {
 
     const handleMoveToGroup = async (pageId, targetGroupName) => {
         try {
+            // Find the page to check if user owns it
+            const page = pages.find(p => p.id === pageId);
+            if (!page) return;
+
             // Find the group ID from the group name
             const targetGroup = groups.find(g => g.name === targetGroupName);
             const groupId = targetGroupName === 'Ungrouped' ? null : targetGroup?.id;
 
-            await pagesAPI.updatePage(pageId, { group_id: groupId });
+            // If the user owns the page, update the page directly
+            // If the user doesn't own it (shared page), update user's personal preference
+            if (page.permission === 'owner') {
+                await pagesAPI.updatePage(pageId, { group_id: groupId });
+            } else {
+                // For shared pages, use the user-specific group preference endpoint
+                await pagesAPI.updateUserPageGroup(pageId, groupId);
+            }
+
             fetchData(); // Refresh the page list
         } catch (error) {
             console.error('Failed to move page:', error);
@@ -105,10 +117,22 @@ const Dashboard = () => {
         }
     };
 
+    const handleDeleteGroup = async (groupId, groupName) => {
+        if (!window.confirm(`Delete the group "${groupName}"?`)) return;
+
+        try {
+            await pagesAPI.deleteGroup(groupId);
+            fetchData(); // Refresh to update groups list
+        } catch (error) {
+            console.error('Failed to delete group:', error);
+            alert(error.response?.data?.error || 'Failed to delete group');
+        }
+    };
+
     // Group pages by group - include all groups even if empty
     const groupedPages = {};
 
-    // Add all groups first (even empty ones)
+    // Add all groups first (even empty ones) - these are the user's groups
     groups.forEach(group => {
         groupedPages[group.name] = [];
     });
@@ -119,10 +143,14 @@ const Dashboard = () => {
     // Now add pages to their groups
     pages.forEach(page => {
         const groupName = page.group_name || 'Ungrouped';
-        if (!groupedPages[groupName]) {
-            groupedPages[groupName] = [];
+        // Only add to groups that we've already defined (user's groups + Ungrouped)
+        // This prevents showing groups from other users
+        if (groupedPages[groupName] !== undefined) {
+            groupedPages[groupName].push(page);
+        } else {
+            // If the page has a group_name that doesn't exist in our groups, treat as Ungrouped
+            groupedPages['Ungrouped'].push(page);
         }
-        groupedPages[groupName].push(page);
     });
 
     if (loading) {
@@ -183,16 +211,21 @@ const Dashboard = () => {
                         </div>
                     ) : (
                         <div className="pages-grid">
-                            {Object.entries(groupedPages).map(([groupName, groupPages]) => (
-                                <PageGroup
-                                    key={groupName}
-                                    groupName={groupName}
-                                    pages={groupPages}
-                                    onPageOpen={openPage}
-                                    onPageDelete={handleDeletePage}
-                                    onPageDrop={handleMoveToGroup}
-                                />
-                            ))}
+                            {Object.entries(groupedPages).map(([groupName, groupPages]) => {
+                                const group = groups.find(g => g.name === groupName);
+                                return (
+                                    <PageGroup
+                                        key={groupName}
+                                        groupName={groupName}
+                                        groupId={group?.id}
+                                        pages={groupPages}
+                                        onPageOpen={openPage}
+                                        onPageDelete={handleDeletePage}
+                                        onPageDrop={handleMoveToGroup}
+                                        onGroupDelete={handleDeleteGroup}
+                                    />
+                                );
+                            })}
                         </div>
                     )}
                 </div>

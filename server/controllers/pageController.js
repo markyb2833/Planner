@@ -19,7 +19,8 @@ const getPages = async (req, res) => {
                     WHEN p.owner_id = ? THEN 'owner'
                     ELSE ps.permission_level
                 END as permission,
-                pg.name as group_name
+                pg.name as group_name,
+                ps.preferences as share_preferences
             FROM pages p
             LEFT JOIN page_groups pg ON p.group_id = pg.id
             LEFT JOIN page_shares ps ON p.id = ps.page_id AND ps.user_id = ? AND ps.status = 'accepted'
@@ -27,7 +28,69 @@ const getPages = async (req, res) => {
             ORDER BY p.updated_at DESC
         `, [userId, userId, userId, userId]);
 
-        res.json({ pages });
+        // Process pages to handle user-specific grouping
+        const processedPages = pages.map(page => {
+            // If this is a shared page (not owned by user)
+            if (page.owner_id !== userId) {
+                // Check if user has set a preference
+                if (page.share_preferences) {
+                    try {
+                        const preferences = typeof page.share_preferences === 'string'
+                            ? JSON.parse(page.share_preferences)
+                            : page.share_preferences;
+
+                        // If user has set their own group_id, use it
+                        if (preferences.group_id !== undefined) {
+                            page.group_id = preferences.group_id;
+                            page.group_name = null; // Will fetch below
+                        } else {
+                            // No preference set - default to Ungrouped
+                            page.group_id = null;
+                            page.group_name = null;
+                        }
+                    } catch (err) {
+                        console.error('Error parsing share preferences:', err);
+                        // On error, default to Ungrouped
+                        page.group_id = null;
+                        page.group_name = null;
+                    }
+                } else {
+                    // No preferences at all - default to Ungrouped
+                    page.group_id = null;
+                    page.group_name = null;
+                }
+            }
+
+            // Remove share_preferences from response
+            delete page.share_preferences;
+            return page;
+        });
+
+        // For shared pages with user-specific group_ids, fetch the group names
+        const sharedPagesWithCustomGroups = processedPages.filter(
+            page => page.owner_id !== userId && page.group_id !== null
+        );
+
+        if (sharedPagesWithCustomGroups.length > 0) {
+            const groupIds = [...new Set(sharedPagesWithCustomGroups.map(p => p.group_id))];
+            const [groups] = await pool.query(
+                'SELECT id, name FROM page_groups WHERE id IN (?) AND owner_id = ?',
+                [groupIds, userId]
+            );
+
+            const groupMap = groups.reduce((acc, g) => {
+                acc[g.id] = g.name;
+                return acc;
+            }, {});
+
+            processedPages.forEach(page => {
+                if (page.owner_id !== userId && page.group_id && groupMap[page.group_id]) {
+                    page.group_name = groupMap[page.group_id];
+                }
+            });
+        }
+
+        res.json({ pages: processedPages });
     } catch (error) {
         console.error('Get pages error:', error);
         res.status(500).json({ error: 'Server error' });
@@ -326,6 +389,50 @@ const createPageGroup = async (req, res) => {
 };
 
 /**
+ * Delete page group
+ */
+const deletePageGroup = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.userId;
+
+        // Check if group exists and belongs to user
+        const [groups] = await pool.query(
+            'SELECT owner_id FROM page_groups WHERE id = ?',
+            [id]
+        );
+
+        if (groups.length === 0) {
+            return res.status(404).json({ error: 'Group not found' });
+        }
+
+        if (groups[0].owner_id !== userId) {
+            return res.status(403).json({ error: 'You can only delete your own groups' });
+        }
+
+        // Check if group has any pages
+        const [pages] = await pool.query(
+            'SELECT COUNT(*) as count FROM pages WHERE group_id = ? AND owner_id = ?',
+            [id, userId]
+        );
+
+        if (pages[0].count > 0) {
+            return res.status(400).json({
+                error: 'Cannot delete group with pages. Move pages to another group first.'
+            });
+        }
+
+        // Delete the group
+        await pool.query('DELETE FROM page_groups WHERE id = ?', [id]);
+
+        res.json({ message: 'Group deleted successfully' });
+    } catch (error) {
+        console.error('Delete page group error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+/**
  * Invite user to page
  */
 const inviteUser = async (req, res) => {
@@ -460,10 +567,10 @@ const respondToInvitation = async (req, res) => {
 const getSharedUsers = async (req, res) => {
     try {
         const pageId = req.params.id;
-        const userId = req.userId;
+        const userId = req.user.userId;
 
         // Check if user is the owner
-        const [pages] = await req.db.query(
+        const [pages] = await pool.query(
             'SELECT owner_id FROM pages WHERE id = ?',
             [pageId]
         );
@@ -478,7 +585,7 @@ const getSharedUsers = async (req, res) => {
         }
 
         // Get all users with accepted shares
-        const [sharedUsers] = await req.db.query(
+        const [sharedUsers] = await pool.query(
             `SELECT
                 ps.id as share_id,
                 ps.user_id,
@@ -509,7 +616,7 @@ const updateUserPermission = async (req, res) => {
     try {
         const pageId = req.params.id;
         const targetUserId = parseInt(req.params.userId);
-        const currentUserId = req.userId;
+        const currentUserId = req.user.userId;
         const { permission_level } = req.body;
 
         // Validate permission level
@@ -518,7 +625,7 @@ const updateUserPermission = async (req, res) => {
         }
 
         // Check if current user is the owner
-        const [pages] = await req.db.query(
+        const [pages] = await pool.query(
             'SELECT owner_id FROM pages WHERE id = ?',
             [pageId]
         );
@@ -533,7 +640,7 @@ const updateUserPermission = async (req, res) => {
         }
 
         // Update the permission
-        const [result] = await req.db.query(
+        const [result] = await pool.query(
             `UPDATE page_shares
             SET permission_level = ?
             WHERE page_id = ? AND user_id = ? AND status = 'accepted'`,
@@ -561,10 +668,10 @@ const removeUserAccess = async (req, res) => {
     try {
         const pageId = req.params.id;
         const targetUserId = parseInt(req.params.userId);
-        const currentUserId = req.userId;
+        const currentUserId = req.user.userId;
 
         // Check if current user is the owner
-        const [pages] = await req.db.query(
+        const [pages] = await pool.query(
             'SELECT owner_id FROM pages WHERE id = ?',
             [pageId]
         );
@@ -579,7 +686,7 @@ const removeUserAccess = async (req, res) => {
         }
 
         // Delete the share
-        const [result] = await req.db.query(
+        const [result] = await pool.query(
             'DELETE FROM page_shares WHERE page_id = ? AND user_id = ?',
             [pageId, targetUserId]
         );
@@ -595,6 +702,83 @@ const removeUserAccess = async (req, res) => {
     }
 };
 
+/**
+ * Update user's personal group preference for a shared page
+ */
+const updateUserPageGroup = async (req, res) => {
+    try {
+        const pageId = req.params.id;
+        const userId = req.user.userId;
+        const { group_id } = req.body;
+
+        // Validate that group_id is either null or a number
+        if (group_id !== null && (typeof group_id !== 'number' || isNaN(group_id))) {
+            return res.status(400).json({ error: 'group_id must be a number or null' });
+        }
+
+        // Check if the page exists and user has access to it (but is not the owner)
+        const [shares] = await pool.query(
+            `SELECT ps.id, p.owner_id, ps.preferences
+            FROM page_shares ps
+            JOIN pages p ON ps.page_id = p.id
+            WHERE ps.page_id = ? AND ps.user_id = ? AND ps.status = 'accepted'`,
+            [pageId, userId]
+        );
+
+        if (shares.length === 0) {
+            return res.status(404).json({ error: 'Shared page not found or access denied' });
+        }
+
+        const share = shares[0];
+
+        // If user is the owner, they should use the regular updatePage endpoint
+        if (share.owner_id === userId) {
+            return res.status(400).json({ error: 'Owners should update group_id directly on the page' });
+        }
+
+        // If group_id is provided, verify it belongs to the user
+        if (group_id !== null) {
+            const [groups] = await pool.query(
+                'SELECT id FROM page_groups WHERE id = ? AND owner_id = ?',
+                [group_id, userId]
+            );
+
+            if (groups.length === 0) {
+                return res.status(404).json({ error: 'Page group not found or does not belong to you' });
+            }
+        }
+
+        // Get current preferences or create new object
+        let preferences = {};
+        if (share.preferences) {
+            try {
+                preferences = typeof share.preferences === 'string'
+                    ? JSON.parse(share.preferences)
+                    : share.preferences;
+            } catch (err) {
+                console.error('Error parsing existing preferences:', err);
+            }
+        }
+
+        // Update group_id in preferences
+        preferences.group_id = group_id;
+
+        // Save updated preferences
+        await pool.query(
+            'UPDATE page_shares SET preferences = ? WHERE page_id = ? AND user_id = ?',
+            [JSON.stringify(preferences), pageId, userId]
+        );
+
+        res.json({
+            message: 'Page group preference updated successfully',
+            group_id
+        });
+    } catch (error) {
+        console.error('Update user page group error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
 module.exports = {
     getPages,
     getPage,
@@ -604,10 +788,12 @@ module.exports = {
     updatePageDefaults,
     getPageGroups,
     createPageGroup,
+    deletePageGroup,
     inviteUser,
     getPendingInvitations,
     respondToInvitation,
     getSharedUsers,
     updateUserPermission,
-    removeUserAccess
+    removeUserAccess,
+    updateUserPageGroup
 };

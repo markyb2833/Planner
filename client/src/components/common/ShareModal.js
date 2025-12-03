@@ -2,6 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { authAPI, pagesAPI } from '../../services/api';
 import socketService from '../../services/socket';
 
+/**
+ * Mask email address for privacy
+ * Always shows first character + ***** + @ + domain
+ */
+const maskEmail = (email) => {
+    if (!email || !email.includes('@')) return email;
+
+    const [localPart, domain] = email.split('@');
+    if (localPart.length === 0) return email;
+
+    return `${localPart[0]}*****@${domain}`;
+};
+
 const ShareModal = ({ page, onClose, onShare, currentUserId, isOwner }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -194,7 +207,7 @@ const ShareModal = ({ page, onClose, onShare, currentUserId, isOwner }) => {
                                         </div>
                                         <div className="share-user-info">
                                             <span className="share-user-name">{user.username}</span>
-                                            <span className="share-user-email">{user.email}</span>
+                                            <span className="share-user-email">{maskEmail(user.email)}</span>
                                         </div>
                                         {selectedUser?.id === user.id && (
                                             <svg className="check-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -214,7 +227,7 @@ const ShareModal = ({ page, onClose, onShare, currentUserId, isOwner }) => {
                                 </div>
                                 <div className="share-user-info">
                                     <span className="share-user-name">{selectedUser.username}</span>
-                                    <span className="share-user-email">{selectedUser.email}</span>
+                                    <span className="share-user-email">{maskEmail(selectedUser.email)}</span>
                                 </div>
                                 <span className={`permission-badge ${permissionLevel}`}>
                                     {permissionLevel === 'edit' ? '✏️ Editor' : '👁️ Viewer'}
@@ -280,7 +293,7 @@ const ShareModal = ({ page, onClose, onShare, currentUserId, isOwner }) => {
                                             </div>
                                             <div className="share-user-info">
                                                 <span className="share-user-name">{user.username}</span>
-                                                <span className="share-user-email">{user.email}</span>
+                                                <span className="share-user-email">{maskEmail(user.email)}</span>
                                             </div>
                                             <select
                                                 value={user.permission_level}

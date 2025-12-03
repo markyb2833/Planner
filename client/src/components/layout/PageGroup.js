@@ -2,9 +2,9 @@ import React, { useRef, useEffect } from 'react';
 import { useDrop } from 'react-dnd';
 import PageCard from './PageCard';
 
-const PageGroup = ({ groupName, pages, onPageOpen, onPageDelete, onPageDrop }) => {
+const PageGroup = ({ groupName, pages, onPageOpen, onPageDelete, onPageDrop, onGroupDelete, groupId }) => {
     const groupRef = useRef(null);
-    
+
     const [{ isOver, canDrop }, drop] = useDrop({
         accept: 'PAGE',
         drop: (item) => {
@@ -26,6 +26,7 @@ const PageGroup = ({ groupName, pages, onPageOpen, onPageDelete, onPageDrop }) =
     }, [drop]);
 
     const dropZoneActive = isOver && canDrop;
+    const canDeleteGroup = groupName !== 'Ungrouped' && pages.length === 0 && onGroupDelete;
 
     return (
         <div
@@ -38,10 +39,21 @@ const PageGroup = ({ groupName, pages, onPageOpen, onPageDelete, onPageDrop }) =
                     : 'rgba(255, 255, 255, 0.1)'
             }}
         >
-            <h3 className="group-title">
-                {groupName}
-                {dropZoneActive && <span className="drop-indicator"> ⬅ Drop here</span>}
-            </h3>
+            <div className="group-header">
+                <h3 className="group-title">
+                    {groupName}
+                    {dropZoneActive && <span className="drop-indicator"> ⬅ Drop here</span>}
+                </h3>
+                {canDeleteGroup && (
+                    <button
+                        className="delete-group-btn"
+                        onClick={() => onGroupDelete(groupId, groupName)}
+                        title="Delete empty group"
+                    >
+                        ✕
+                    </button>
+                )}
+            </div>
             {pages.length === 0 && !dropZoneActive ? (
                 <div className="empty-group-message">
                     No pages in this group. Drag pages here to add them.

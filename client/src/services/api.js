@@ -60,12 +60,14 @@ export const pagesAPI = {
     updateDefaults: (id, data) => api.put(`/pages/${id}/defaults`, data),
     getGroups: () => api.get('/pages/groups/list'),
     createGroup: (data) => api.post('/pages/groups', data),
+    deleteGroup: (groupId) => api.delete(`/pages/groups/${groupId}`),
     inviteUser: (pageId, data) => api.post(`/pages/${pageId}/invite`, data),
     getPendingInvitations: () => api.get('/pages/invitations/pending'),
     respondToInvitation: (id, action) => api.post(`/pages/invitations/${id}/respond`, { action }),
     getSharedUsers: (pageId) => api.get(`/pages/${pageId}/shared-users`),
     updateUserPermission: (pageId, userId, permission_level) => api.put(`/pages/${pageId}/share/${userId}`, { permission_level }),
-    removeUserAccess: (pageId, userId) => api.delete(`/pages/${pageId}/share/${userId}`)
+    removeUserAccess: (pageId, userId) => api.delete(`/pages/${pageId}/share/${userId}`),
+    updateUserPageGroup: (pageId, group_id) => api.put(`/pages/${pageId}/user-group`, { group_id })
 };
 
 // Cards API

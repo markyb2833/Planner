@@ -9,6 +9,7 @@ class SocketService {
         this.socket = null;
         this.connected = false;
         this.pendingJoins = []; // Queue for pending room joins
+        this.heartbeatInterval = null;
     }
 
     connect(token) {
@@ -27,7 +28,10 @@ class SocketService {
         this.socket.on('connect', () => {
             console.log('Socket connected');
             this.connected = true;
-            
+
+            // Start heartbeat to keep connection alive and detect stale connections
+            this.startHeartbeat();
+
             // Process any pending room joins
             while (this.pendingJoins.length > 0) {
                 const pageId = this.pendingJoins.shift();
@@ -39,6 +43,7 @@ class SocketService {
         this.socket.on('disconnect', () => {
             console.log('Socket disconnected');
             this.connected = false;
+            this.stopHeartbeat();
         });
 
         this.socket.on('connect_error', (error) => {
@@ -48,7 +53,28 @@ class SocketService {
         return this.socket;
     }
 
+    startHeartbeat() {
+        // Stop any existing heartbeat
+        this.stopHeartbeat();
+
+        // Send a heartbeat every 15 seconds
+        this.heartbeatInterval = setInterval(() => {
+            if (this.socket?.connected) {
+                // Socket.io has built-in ping/pong, but we can also send custom heartbeat
+                this.socket.emit('heartbeat');
+            }
+        }, 15000); // Every 15 seconds
+    }
+
+    stopHeartbeat() {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
+    }
+
     disconnect() {
+        this.stopHeartbeat();
         if (this.socket) {
             this.socket.disconnect();
             this.socket = null;
