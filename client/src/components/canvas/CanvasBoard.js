@@ -462,9 +462,14 @@ const CanvasBoardContent = () => {
                     </div>
 
                     <div className="toolbar-right">
+                        {/* Active Users - Integrated into toolbar */}
+                        {page && user && (
+                            <ActiveUsers pageId={pageId} currentUserId={user.id} />
+                        )}
+
                         <div className="zoom-controls-modern">
-                            <button 
-                                onClick={() => setZoom(Math.max(0.1, zoom - 0.1))} 
+                            <button
+                                onClick={() => setZoom(Math.max(0.1, zoom - 0.1))}
                                 className="zoom-btn"
                                 title="Zoom Out"
                             >
@@ -476,8 +481,8 @@ const CanvasBoardContent = () => {
                             <div className="zoom-display">
                                 <span className="zoom-value">{Math.round(zoom * 100)}%</span>
                             </div>
-                            <button 
-                                onClick={() => setZoom(Math.min(3, zoom + 0.1))} 
+                            <button
+                                onClick={() => setZoom(Math.min(3, zoom + 0.1))}
                                 className="zoom-btn"
                                 title="Zoom In"
                             >
@@ -486,8 +491,8 @@ const CanvasBoardContent = () => {
                                     <path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
                                 </svg>
                             </button>
-                            <button 
-                                onClick={resetView} 
+                            <button
+                                onClick={resetView}
                                 className="zoom-btn reset-btn"
                                 title="Reset View"
                             >
@@ -664,11 +669,6 @@ const CanvasBoardContent = () => {
                             }
                         }}
                     />
-                )}
-
-                {/* Active Users Indicator */}
-                {page && user && (
-                    <ActiveUsers pageId={pageId} currentUserId={user.id} />
                 )}
 
                 {/* Share Modal */}
