@@ -11,7 +11,7 @@
     "start": "node server/index.js",
     "server": "node server/index.js",
     "server:dev": "nodemon server/index.js",
-    "build": "cd client && npm ci && npx react-scripts build",
+    "build": "cd client && npm install && npm run build",
     "dev": "concurrently \"npm run server:dev\" \"cd client && npm start\"",
     "test": "echo \"No tests yet\" && exit 0"
   },
