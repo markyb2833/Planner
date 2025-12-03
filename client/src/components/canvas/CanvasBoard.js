@@ -641,8 +641,15 @@ const CanvasBoardContent = () => {
                         defaults={pageDefaults}
                         onClose={() => setShowPageSettings(false)}
                         onUpdate={(updates) => {
-                            setPage(prev => ({ ...prev, ...updates }));
-                            socketService.emitPageUpdated(pageId, updates);
+                            // Update page settings
+                            const { defaults, ...pageUpdates } = updates;
+                            setPage(prev => ({ ...prev, ...pageUpdates }));
+                            socketService.emitPageUpdated(pageId, pageUpdates);
+                            
+                            // Update page defaults if provided
+                            if (defaults) {
+                                setPageDefaults(prev => ({ ...prev, ...defaults }));
+                            }
                         }}
                     />
                 )}
