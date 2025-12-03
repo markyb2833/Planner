@@ -206,6 +206,10 @@ const updatePageDefaults = async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.user.userId;
+        
+        console.log('updatePageDefaults called for page:', id);
+        console.log('Request body:', req.body);
+        
         const {
             default_card_width,
             default_card_height,

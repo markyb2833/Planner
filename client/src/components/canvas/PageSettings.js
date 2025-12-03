@@ -35,19 +35,35 @@ const PageSettings = ({ page, defaults, onClose, onUpdate }) => {
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            // Update page settings
-            await pagesAPI.updatePage(page.id, pageSettings);
+            // Update page settings (convert numeric values)
+            const pageData = {
+                ...pageSettings,
+                canvas_max_width: parseInt(pageSettings.canvas_max_width) || 5000,
+                canvas_max_height: parseInt(pageSettings.canvas_max_height) || 5000
+            };
+            await pagesAPI.updatePage(page.id, pageData);
 
-            // Update page defaults (fixed: use updateDefaults instead of updatePageDefaults)
-            await pagesAPI.updateDefaults(page.id, defaultSettings);
+            // Update page defaults (convert numeric values)
+            const defaultsData = {
+                default_card_width: parseInt(defaultSettings.default_card_width) || 200,
+                default_card_height: parseInt(defaultSettings.default_card_height) || 150,
+                default_card_background_color: defaultSettings.default_card_background_color,
+                default_card_text_color: defaultSettings.default_card_text_color,
+                default_card_font_size: parseInt(defaultSettings.default_card_font_size) || 14
+            };
+            
+            console.log('Saving page defaults:', defaultsData);
+            const response = await pagesAPI.updateDefaults(page.id, defaultsData);
+            console.log('Page defaults save response:', response);
 
-            // Call parent update handler
-            onUpdate({ ...pageSettings });
+            // Call parent update handler with both page settings and defaults
+            onUpdate({ ...pageSettings, defaults: defaultsData });
 
             onClose();
         } catch (error) {
             console.error('Failed to save settings:', error);
-            alert('Failed to save settings');
+            console.error('Error details:', error.response?.data);
+            alert('Failed to save settings: ' + (error.response?.data?.error || error.message));
         } finally {
             setIsSaving(false);
         }
