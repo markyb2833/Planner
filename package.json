@@ -9,7 +9,7 @@
   "scripts": {
     "setup-db": "node setup_database.js",
     "start": "node server/index.js",
-    "build": "cd client && npm run build"
+    "build": "cd client && npm install && npm run build"
   },
   "keywords": [
     "planner",
