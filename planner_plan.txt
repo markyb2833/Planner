@@ -1,0 +1,149 @@
+=== PLANNER WEB APPLICATION - DETAILED SPECIFICATION ===
+
+## CORE CONCEPT
+A visual, canvas-based planner where users can create and organize cards on a zoomable board with real-time collaboration.
+
+## 1. BOARD & CANVAS SYSTEM
+- Full-page viewport with NO scrolling
+- Zoomable interface (all content scales with zoom level)
+- Maximum canvas size constraint (to be defined)
+- Single layer (no z-index stacking of cards beyond drag operations)
+- Real-time rendering - all changes visible immediately without page reload
+
+## 2. CARDS SYSTEM
+
+### Card Types (Combinable):
+- Text cards
+- Image cards (image displays as card background with auto-contrasting text overlay)
+- List cards
+- Cards can combine multiple types (e.g., image + text, list + image)
+
+### Card Properties:
+- X, Y coordinates (for positioning on canvas)
+- Width, Height (resizable by user)
+- Background color (customizable)
+- Background image (optional)
+- Content (text, list items, image URL, etc.)
+
+### Card Customization:
+- Individual card styling (colors, images, size)
+- Global default settings (applies to all new cards)
+- Per-card override capability (change individual cards from defaults)
+
+### Card Interactions:
+- Drag-and-drop positioning (with real-time updates for collaborators)
+- Resizable
+- Click to open detailed view (modal or side panel)
+
+### Card Details (When Opened):
+- Extended notes field
+- Work start date
+- Work end date
+- User assignments (assign other users to the card)
+- Full editing of card content and styling
+
+## 3. CARD RELATIONSHIPS
+- Visual connection lines between cards
+- Lines are color-customizable
+- Non-directional (just visual links, no A→B semantics)
+- No validation needed (circular connections allowed)
+- Lines should render dynamically as cards move
+
+## 4. PAGE SYSTEM
+- Users can create unlimited pages
+- Each page is an independent canvas/board
+- Pages can be grouped (folders/categories)
+- Each page has its own:
+  - Canvas size
+  - Background (color or image)
+  - Set of cards
+  - Customization defaults
+
+## 5. NAVIGATION
+- Collapsible left sidebar
+- Shows page hierarchy (groups and pages)
+- Quick navigation between pages
+- Page management (create, rename, delete, organize into groups)
+
+## 6. USER AUTHENTICATION & MANAGEMENT
+
+### Authentication:
+- User registration with email
+- Secure password storage (hashed, salted)
+- Login system
+- Password reset via email
+- Email sending via Gmail account (credentials in .env)
+
+### User Features:
+- User profiles
+- User search functionality (find other users in system)
+
+## 7. COLLABORATION & PERMISSIONS
+
+### Page Sharing:
+- Owner can invite other users to a page
+- Send invitation request by searching username/email
+- Invited users must accept request
+- Two permission levels per page:
+  - View Only: Can see all cards and changes in real-time
+  - Edit: Can create, modify, delete cards and change page settings
+
+### Real-Time Collaboration:
+- All changes broadcast to all users viewing the same page
+- Card movements visible in real-time
+- Card edits update live
+- No page reloads - all updates via WebSockets or similar
+- Multiple users can work simultaneously
+
+## 8. TECHNICAL STACK (To Be Determined)
+
+### Frontend Options:
+- React (recommended for component-based architecture and real-time state management)
+- Vue.js (alternative)
+- Libraries needed: drag-and-drop, canvas rendering, real-time communication
+
+### Backend Options:
+- Node.js + Express (recommended for JavaScript full-stack, good WebSocket support)
+- Python + Flask/FastAPI (alternative)
+
+### Real-Time Communication:
+- WebSockets (Socket.io for Node.js, or native WebSockets)
+- For live updates across all connected users
+
+### Database:
+- MySQL (as specified in .env)
+- Need to design schema for: users, pages, cards, card_links, page_shares, page_groups, user_settings
+
+## 9. DATABASE SCHEMA (To Be Designed)
+
+Key entities needed:
+- users (id, email, password_hash, username, created_at, etc.)
+- pages (id, owner_id, name, background_color, background_image, max_width, max_height, group_id, created_at)
+- page_groups (id, owner_id, name, created_at)
+- cards (id, page_id, type, x_position, y_position, width, height, background_color, background_image, content, created_at, updated_at)
+- card_links (id, page_id, card_from_id, card_to_id, line_color)
+- page_shares (id, page_id, user_id, permission_level, status, invited_at, accepted_at)
+- page_defaults (id, page_id, default_card_color, default_card_width, default_card_height, etc.)
+- password_resets (id, user_id, token, expires_at)
+
+## 10. KEY FEATURES SUMMARY
+✓ Zoomable canvas with max size constraint
+✓ Combinable card types (text + image + list)
+✓ Real-time collaboration (no page reloads)
+✓ Drag-and-drop with live updates
+✓ Visual card linking with custom colors
+✓ User invitation system with permissions
+✓ Secure authentication with email password reset
+✓ Unlimited pages with grouping
+✓ Global and per-card customization
+✓ Collapsible sidebar navigation
+
+## NEXT STEPS
+1. Finalize tech stack decision
+2. Design detailed database schema
+3. Set up project structure
+4. Implement authentication system
+5. Build canvas and card rendering
+6. Implement real-time communication
+7. Add collaboration features
+
