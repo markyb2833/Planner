@@ -12,7 +12,10 @@ const {
     createPageGroup,
     inviteUser,
     getPendingInvitations,
-    respondToInvitation
+    respondToInvitation,
+    getSharedUsers,
+    updateUserPermission,
+    removeUserAccess
 } = require('../controllers/pageController');
 
 // All routes require authentication
@@ -34,5 +37,8 @@ router.post('/groups', createPageGroup);
 router.post('/:id/invite', inviteUser);
 router.get('/invitations/pending', getPendingInvitations);
 router.post('/invitations/:id/respond', respondToInvitation);
+router.get('/:id/shared-users', getSharedUsers);
+router.put('/:id/share/:userId', updateUserPermission);
+router.delete('/:id/share/:userId', removeUserAccess);
 
 module.exports = router;

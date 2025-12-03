@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authAPI, pagesAPI } from '../../services/api';
+import { socketService } from '../../services/socket';
 
-const ShareModal = ({ page, onClose, onShare }) => {
+const ShareModal = ({ page, onClose, onShare, currentUserId, isOwner }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -11,6 +12,7 @@ const ShareModal = ({ page, onClose, onShare }) => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [sharedUsers, setSharedUsers] = useState([]);
+    const [loadingSharedUsers, setLoadingSharedUsers] = useState(true);
 
     // Debounced search
     const searchUsers = useCallback(async (query) => {
@@ -44,9 +46,24 @@ const ShareModal = ({ page, onClose, onShare }) => {
 
     // Load currently shared users
     useEffect(() => {
-        // This would need a backend endpoint to get shared users for a page
-        // For now, we'll just show the UI
-    }, [page.id]);
+        const loadSharedUsers = async () => {
+            if (!isOwner) {
+                setLoadingSharedUsers(false);
+                return;
+            }
+
+            try {
+                const response = await pagesAPI.getSharedUsers(page.id);
+                setSharedUsers(response.data);
+            } catch (error) {
+                console.error('Failed to load shared users:', error);
+            } finally {
+                setLoadingSharedUsers(false);
+            }
+        };
+
+        loadSharedUsers();
+    }, [page.id, isOwner]);
 
     const handleInvite = async () => {
         if (!selectedUser) {
@@ -75,6 +92,48 @@ const ShareModal = ({ page, onClose, onShare }) => {
             setError(error.response?.data?.error || 'Failed to send invitation');
         } finally {
             setIsInviting(false);
+        }
+    };
+
+    const handleChangePermission = async (userId, newPermission) => {
+        try {
+            await pagesAPI.updateUserPermission(page.id, userId, newPermission);
+            setSharedUsers(prev =>
+                prev.map(user =>
+                    user.user_id === userId
+                        ? { ...user, permission_level: newPermission }
+                        : user
+                )
+            );
+            setSuccess('Permission updated successfully');
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (error) {
+            setError(error.response?.data?.error || 'Failed to update permission');
+            setTimeout(() => setError(''), 3000);
+        }
+    };
+
+    const handleKickUser = async (userId, username) => {
+        if (!window.confirm(`Remove ${username}'s access to this page?`)) {
+            return;
+        }
+
+        try {
+            await pagesAPI.removeUserAccess(page.id, userId);
+            setSharedUsers(prev => prev.filter(user => user.user_id !== userId));
+
+            // Notify via socket to kick the user in real-time
+            socketService.emit('kick-user', {
+                pageId: page.id,
+                userId,
+                kickedByUserId: currentUserId
+            });
+
+            setSuccess(`${username} has been removed from this page`);
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (error) {
+            setError(error.response?.data?.error || 'Failed to remove user');
+            setTimeout(() => setError(''), 3000);
         }
     };
 
@@ -198,6 +257,54 @@ const ShareModal = ({ page, onClose, onShare }) => {
                         {error && <div className="share-error">{error}</div>}
                         {success && <div className="share-success">{success}</div>}
                     </div>
+
+                    {/* Shared Users List - Only for owner */}
+                    {isOwner && (
+                        <div className="shared-users-section">
+                            <h3>People with access</h3>
+                            {loadingSharedUsers ? (
+                                <div className="loading-shared-users">
+                                    <div className="search-spinner"></div>
+                                    <span>Loading...</span>
+                                </div>
+                            ) : sharedUsers.length === 0 ? (
+                                <div className="no-shared-users">
+                                    No one has access yet. Invite users above to collaborate!
+                                </div>
+                            ) : (
+                                <div className="shared-users-list">
+                                    {sharedUsers.map((user) => (
+                                        <div key={user.user_id} className="shared-user-item">
+                                            <div className="share-user-avatar">
+                                                {user.username.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div className="share-user-info">
+                                                <span className="share-user-name">{user.username}</span>
+                                                <span className="share-user-email">{user.email}</span>
+                                            </div>
+                                            <select
+                                                value={user.permission_level}
+                                                onChange={(e) => handleChangePermission(user.user_id, e.target.value)}
+                                                className="user-permission-select"
+                                            >
+                                                <option value="view">Can view</option>
+                                                <option value="edit">Can edit</option>
+                                            </select>
+                                            <button
+                                                className="user-kick-btn"
+                                                onClick={() => handleKickUser(user.user_id, user.username)}
+                                                title="Remove access"
+                                            >
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    <path d="M18 6L6 18M6 6l12 12"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Permission levels explanation */}
                     <div className="share-permissions-info">
@@ -577,6 +684,94 @@ const ShareModal = ({ page, onClose, onShare }) => {
                         margin: 0;
                         font-size: 13px;
                         color: #666;
+                    }
+
+                    .shared-users-section {
+                        margin-bottom: 24px;
+                        padding-bottom: 24px;
+                        border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+                    }
+
+                    .shared-users-section h3 {
+                        margin: 0 0 16px 0;
+                        font-size: 16px;
+                        color: #1a1a2e;
+                        font-weight: 600;
+                    }
+
+                    .loading-shared-users {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 12px;
+                        padding: 24px;
+                        color: #666;
+                    }
+
+                    .no-shared-users {
+                        padding: 24px;
+                        text-align: center;
+                        color: #999;
+                        font-size: 14px;
+                        background: rgba(102, 126, 234, 0.03);
+                        border-radius: 12px;
+                        border: 2px dashed rgba(102, 126, 234, 0.2);
+                    }
+
+                    .shared-users-list {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                    }
+
+                    .shared-user-item {
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 12px 16px;
+                        background: rgba(102, 126, 234, 0.03);
+                        border-radius: 12px;
+                        border: 1px solid rgba(102, 126, 234, 0.1);
+                        transition: all 0.2s ease;
+                    }
+
+                    .shared-user-item:hover {
+                        background: rgba(102, 126, 234, 0.05);
+                        border-color: rgba(102, 126, 234, 0.2);
+                    }
+
+                    .user-permission-select {
+                        padding: 8px 12px;
+                        border: 1px solid rgba(102, 126, 234, 0.2);
+                        border-radius: 8px;
+                        font-size: 13px;
+                        background: white;
+                        cursor: pointer;
+                        min-width: 110px;
+                    }
+
+                    .user-permission-select:focus {
+                        outline: none;
+                        border-color: #667eea;
+                    }
+
+                    .user-kick-btn {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 8px;
+                        border: none;
+                        background: rgba(220, 53, 69, 0.1);
+                        color: #dc3545;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        transition: all 0.2s ease;
+                    }
+
+                    .user-kick-btn:hover {
+                        background: rgba(220, 53, 69, 0.2);
+                        transform: scale(1.05);
                     }
                 `}</style>
             </div>

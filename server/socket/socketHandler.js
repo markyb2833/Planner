@@ -5,6 +5,9 @@ require('dotenv').config();
  * Socket.io handler for real-time collaboration
  */
 const setupSocketHandlers = (io) => {
+    // In-memory storage for active users per page
+    const activeUsersPerPage = new Map(); // pageId -> Map of userId -> { username, socketId }
+
     // Middleware to authenticate socket connections
     io.use((socket, next) => {
         const token = socket.handshake.auth.token;
@@ -23,6 +26,56 @@ const setupSocketHandlers = (io) => {
         }
     });
 
+    /**
+     * Helper: Get active users for a page
+     */
+    const getActiveUsers = (pageId) => {
+        const users = activeUsersPerPage.get(pageId);
+        if (!users) return [];
+        return Array.from(users.values()).map(u => ({
+            userId: u.userId,
+            username: u.username
+        }));
+    };
+
+    /**
+     * Helper: Add user to active users list
+     */
+    const addActiveUser = (pageId, userId, username, socketId) => {
+        if (!activeUsersPerPage.has(pageId)) {
+            activeUsersPerPage.set(pageId, new Map());
+        }
+        const pageUsers = activeUsersPerPage.get(pageId);
+        pageUsers.set(userId, { userId, username, socketId });
+    };
+
+    /**
+     * Helper: Remove user from active users list
+     */
+    const removeActiveUser = (pageId, userId) => {
+        const pageUsers = activeUsersPerPage.get(pageId);
+        if (pageUsers) {
+            pageUsers.delete(userId);
+            if (pageUsers.size === 0) {
+                activeUsersPerPage.delete(pageId);
+            }
+        }
+    };
+
+    /**
+     * Helper: Remove user from all pages (on disconnect)
+     */
+    const removeUserFromAllPages = (socketId) => {
+        const pagesToCleanup = [];
+        activeUsersPerPage.forEach((users, pageId) => {
+            const userToRemove = Array.from(users.values()).find(u => u.socketId === socketId);
+            if (userToRemove) {
+                pagesToCleanup.push({ pageId, userId: userToRemove.userId });
+            }
+        });
+        return pagesToCleanup;
+    };
+
     io.on('connection', (socket) => {
         console.log(`User connected: ${socket.username} (${socket.userId})`);
 
@@ -31,13 +84,26 @@ const setupSocketHandlers = (io) => {
          */
         socket.on('join-page', (pageId) => {
             socket.join(`page-${pageId}`);
+            socket.currentPageId = pageId;
             console.log(`${socket.username} joined page ${pageId}`);
+
+            // Add to active users
+            addActiveUser(pageId, socket.userId, socket.username, socket.id);
+
+            // Get updated list of active users
+            const activeUsers = getActiveUsers(pageId);
+
+            // Send active users to the joining user
+            socket.emit('active-users', activeUsers);
 
             // Notify others in the room
             socket.to(`page-${pageId}`).emit('user-joined', {
                 userId: socket.userId,
                 username: socket.username
             });
+
+            // Broadcast updated active users list to all in room
+            io.to(`page-${pageId}`).emit('active-users', activeUsers);
         });
 
         /**
@@ -45,13 +111,23 @@ const setupSocketHandlers = (io) => {
          */
         socket.on('leave-page', (pageId) => {
             socket.leave(`page-${pageId}`);
+            socket.currentPageId = null;
             console.log(`${socket.username} left page ${pageId}`);
+
+            // Remove from active users
+            removeActiveUser(pageId, socket.userId);
+
+            // Get updated list of active users
+            const activeUsers = getActiveUsers(pageId);
 
             // Notify others in the room
             socket.to(`page-${pageId}`).emit('user-left', {
                 userId: socket.userId,
                 username: socket.username
             });
+
+            // Broadcast updated active users list to all in room
+            io.to(`page-${pageId}`).emit('active-users', activeUsers);
         });
 
         /**
@@ -184,10 +260,57 @@ const setupSocketHandlers = (io) => {
         });
 
         /**
+         * Kick a user from a page (owner only - verified via backend API)
+         */
+        socket.on('kick-user', ({ pageId, userId, kickedByUserId }) => {
+            console.log(`User ${kickedByUserId} attempting to kick user ${userId} from page ${pageId}`);
+
+            // Find the socket of the user to be kicked
+            const roomSockets = io.sockets.adapter.rooms.get(`page-${pageId}`);
+            if (roomSockets) {
+                roomSockets.forEach((socketId) => {
+                    const targetSocket = io.sockets.sockets.get(socketId);
+                    if (targetSocket && targetSocket.userId === userId) {
+                        // Remove from active users
+                        removeActiveUser(pageId, userId);
+
+                        // Notify the kicked user
+                        targetSocket.emit('kicked-from-page', {
+                            pageId,
+                            message: 'You have been removed from this page'
+                        });
+
+                        // Force leave the room
+                        targetSocket.leave(`page-${pageId}`);
+
+                        // Update active users for remaining users
+                        const activeUsers = getActiveUsers(pageId);
+                        io.to(`page-${pageId}`).emit('active-users', activeUsers);
+                    }
+                });
+            }
+        });
+
+        /**
          * Disconnect
          */
         socket.on('disconnect', () => {
             console.log(`User disconnected: ${socket.username} (${socket.userId})`);
+
+            // Remove user from all pages they were viewing
+            const pagesToCleanup = removeUserFromAllPages(socket.id);
+
+            // Notify each page room about the user leaving
+            pagesToCleanup.forEach(({ pageId, userId }) => {
+                const activeUsers = getActiveUsers(pageId);
+
+                socket.to(`page-${pageId}`).emit('user-left', {
+                    userId,
+                    username: socket.username
+                });
+
+                io.to(`page-${pageId}`).emit('active-users', activeUsers);
+            });
         });
     });
 };

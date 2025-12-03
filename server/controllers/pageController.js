@@ -454,6 +454,147 @@ const respondToInvitation = async (req, res) => {
     }
 };
 
+/**
+ * Get all users who have access to a page (accepted shares only)
+ */
+const getSharedUsers = async (req, res) => {
+    try {
+        const pageId = req.params.id;
+        const userId = req.userId;
+
+        // Check if user is the owner
+        const [pages] = await req.db.query(
+            'SELECT owner_id FROM pages WHERE id = ?',
+            [pageId]
+        );
+
+        if (pages.length === 0) {
+            return res.status(404).json({ error: 'Page not found' });
+        }
+
+        const page = pages[0];
+        if (page.owner_id !== userId) {
+            return res.status(403).json({ error: 'Only the page owner can view shared users' });
+        }
+
+        // Get all users with accepted shares
+        const [sharedUsers] = await req.db.query(
+            `SELECT
+                ps.id as share_id,
+                ps.user_id,
+                u.username,
+                u.email,
+                ps.permission_level,
+                ps.status,
+                ps.invited_at,
+                ps.accepted_at
+            FROM page_shares ps
+            JOIN users u ON ps.user_id = u.id
+            WHERE ps.page_id = ? AND ps.status = 'accepted'
+            ORDER BY ps.accepted_at DESC`,
+            [pageId]
+        );
+
+        res.json(sharedUsers);
+    } catch (error) {
+        console.error('Get shared users error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+/**
+ * Update a user's permission level for a page
+ */
+const updateUserPermission = async (req, res) => {
+    try {
+        const pageId = req.params.id;
+        const targetUserId = parseInt(req.params.userId);
+        const currentUserId = req.userId;
+        const { permission_level } = req.body;
+
+        // Validate permission level
+        if (!permission_level || !['view', 'edit'].includes(permission_level)) {
+            return res.status(400).json({ error: 'Invalid permission level. Must be "view" or "edit"' });
+        }
+
+        // Check if current user is the owner
+        const [pages] = await req.db.query(
+            'SELECT owner_id FROM pages WHERE id = ?',
+            [pageId]
+        );
+
+        if (pages.length === 0) {
+            return res.status(404).json({ error: 'Page not found' });
+        }
+
+        const page = pages[0];
+        if (page.owner_id !== currentUserId) {
+            return res.status(403).json({ error: 'Only the page owner can change permissions' });
+        }
+
+        // Update the permission
+        const [result] = await req.db.query(
+            `UPDATE page_shares
+            SET permission_level = ?
+            WHERE page_id = ? AND user_id = ? AND status = 'accepted'`,
+            [permission_level, pageId, targetUserId]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'User share not found' });
+        }
+
+        res.json({
+            message: 'Permission updated successfully',
+            permission_level
+        });
+    } catch (error) {
+        console.error('Update user permission error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
+/**
+ * Remove a user's access to a page
+ */
+const removeUserAccess = async (req, res) => {
+    try {
+        const pageId = req.params.id;
+        const targetUserId = parseInt(req.params.userId);
+        const currentUserId = req.userId;
+
+        // Check if current user is the owner
+        const [pages] = await req.db.query(
+            'SELECT owner_id FROM pages WHERE id = ?',
+            [pageId]
+        );
+
+        if (pages.length === 0) {
+            return res.status(404).json({ error: 'Page not found' });
+        }
+
+        const page = pages[0];
+        if (page.owner_id !== currentUserId) {
+            return res.status(403).json({ error: 'Only the page owner can remove access' });
+        }
+
+        // Delete the share
+        const [result] = await req.db.query(
+            'DELETE FROM page_shares WHERE page_id = ? AND user_id = ?',
+            [pageId, targetUserId]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ error: 'User share not found' });
+        }
+
+        res.json({ message: 'User access removed successfully' });
+    } catch (error) {
+        console.error('Remove user access error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+};
+
 module.exports = {
     getPages,
     getPage,
@@ -465,5 +606,8 @@ module.exports = {
     createPageGroup,
     inviteUser,
     getPendingInvitations,
-    respondToInvitation
+    respondToInvitation,
+    getSharedUsers,
+    updateUserPermission,
+    removeUserAccess
 };

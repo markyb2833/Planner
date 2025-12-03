@@ -62,7 +62,10 @@ export const pagesAPI = {
     createGroup: (data) => api.post('/pages/groups', data),
     inviteUser: (pageId, data) => api.post(`/pages/${pageId}/invite`, data),
     getPendingInvitations: () => api.get('/pages/invitations/pending'),
-    respondToInvitation: (id, action) => api.post(`/pages/invitations/${id}/respond`, { action })
+    respondToInvitation: (id, action) => api.post(`/pages/invitations/${id}/respond`, { action }),
+    getSharedUsers: (pageId) => api.get(`/pages/${pageId}/shared-users`),
+    updateUserPermission: (pageId, userId, permission_level) => api.put(`/pages/${pageId}/share/${userId}`, { permission_level }),
+    removeUserAccess: (pageId, userId) => api.delete(`/pages/${pageId}/share/${userId}`)
 };
 
 // Cards API

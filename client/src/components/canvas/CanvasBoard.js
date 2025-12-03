@@ -4,16 +4,19 @@ import { DndProvider, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { pagesAPI, cardsAPI } from '../../services/api';
 import socketService from '../../services/socket';
+import { useAuth } from '../../contexts/AuthContext';
 import Card from '../card/Card';
 import CardModal from '../card/CardModal';
 import CustomDragLayer from '../card/CustomDragLayer';
 import PageSettings from './PageSettings';
 import ShareModal from '../common/ShareModal';
+import ActiveUsers from '../common/ActiveUsers';
 import '../../styles/Canvas.css';
 
 const CanvasBoardContent = () => {
     const { pageId } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
 
     // Page and cards state
     const [page, setPage] = useState(null);
@@ -187,6 +190,14 @@ const CanvasBoardContent = () => {
         socketService.on('link-deleted', handleLinkDeleted);
         socketService.on('page-updated', handlePageUpdated);
 
+        // Handle being kicked from the page
+        socketService.on('kicked-from-page', ({ pageId: kickedPageId, message }) => {
+            if (kickedPageId === pageId) {
+                alert(message);
+                navigate('/');
+            }
+        });
+
         return () => {
             socketService.leavePage(pageId);
             socketService.off('card-created', handleCardCreated);
@@ -196,8 +207,9 @@ const CanvasBoardContent = () => {
             socketService.off('link-created', handleLinkCreated);
             socketService.off('link-deleted', handleLinkDeleted);
             socketService.off('page-updated', handlePageUpdated);
+            socketService.off('kicked-from-page');
         };
-    }, [pageId]);
+    }, [pageId, navigate]);
 
     // Real-time event handlers
     const handleCardCreated = ({ card }) => {
@@ -654,14 +666,21 @@ const CanvasBoardContent = () => {
                     />
                 )}
 
+                {/* Active Users Indicator */}
+                {page && user && (
+                    <ActiveUsers pageId={pageId} currentUserId={user.id} />
+                )}
+
                 {/* Share Modal */}
-                {showShareModal && page && (
+                {showShareModal && page && user && (
                     <ShareModal
                         page={page}
                         onClose={() => setShowShareModal(false)}
                         onShare={() => {
                             // Could refresh shared users list here
                         }}
+                        currentUserId={user.id}
+                        isOwner={page.owner_id === user.id}
                     />
                 )}
         </div>
