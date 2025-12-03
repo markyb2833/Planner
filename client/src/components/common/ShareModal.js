@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { authAPI, pagesAPI } from '../../services/api';
-import { socketService } from '../../services/socket';
+import socketService from '../../services/socket';
 
 const ShareModal = ({ page, onClose, onShare, currentUserId, isOwner }) => {
     const [searchQuery, setSearchQuery] = useState('');

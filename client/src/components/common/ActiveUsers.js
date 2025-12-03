@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { socketService } from '../../services/socket';
+import socketService from '../../services/socket';
 import './ActiveUsers.css';
 
 const ActiveUsers = ({ pageId, currentUserId }) => {
