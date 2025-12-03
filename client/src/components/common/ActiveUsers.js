@@ -36,6 +36,10 @@ const ActiveUsers = ({ pageId, currentUserId }) => {
         socketService.on('user-joined', handleUserJoined);
         socketService.on('user-left', handleUserLeft);
 
+        // Request current active users when component mounts
+        // This ensures we get the list even if we missed the initial emission
+        socketService.emit('request-active-users', { pageId });
+
         // Cleanup
         return () => {
             socketService.off('active-users', handleActiveUsers);

@@ -167,6 +167,15 @@ const setupSocketHandlers = (io) => {
         });
 
         /**
+         * Request active users for a page
+         * Used when component mounts to ensure it has the current list
+         */
+        socket.on('request-active-users', ({ pageId }) => {
+            const activeUsers = getActiveUsers(pageId);
+            socket.emit('active-users', activeUsers);
+        });
+
+        /**
          * Leave a page room
          */
         socket.on('leave-page', (pageId) => {

@@ -98,6 +98,12 @@ class SocketService {
         }
     }
 
+    emit(event, data) {
+        if (this.socket?.connected) {
+            this.socket.emit(event, data);
+        }
+    }
+
     leavePage(pageId) {
         // Remove from pending joins if it was queued
         this.pendingJoins = this.pendingJoins.filter(id => id !== pageId);
