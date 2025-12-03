@@ -9,11 +9,7 @@
   "scripts": {
     "setup-db": "node setup_database.js",
     "start": "node server/index.js",
-    "server": "node server/index.js",
-    "server:dev": "nodemon server/index.js",
-    "build": "npm install --prefix client && npm run build --prefix client",
-    "dev": "concurrently \"npm run server:dev\" \"cd client && npm start\"",
-    "test": "echo \"No tests yet\" && exit 0"
+    "build": "cd client && npm run build"
   },
   "keywords": [
     "planner",
