@@ -10,13 +10,14 @@ require('dotenv').config();
  */
 const getDatabaseConfig = () => {
     // If individual MySQL variables are provided (Railway style)
-    if (process.env.MYSQL_HOST) {
+    // Railway provides both MYSQLHOST and MYSQL_HOST formats
+    if (process.env.MYSQLHOST || process.env.MYSQL_HOST) {
         return {
-            host: process.env.MYSQL_HOST,
-            port: parseInt(process.env.MYSQL_PORT || '3306'),
-            user: process.env.MYSQL_USER,
-            password: process.env.MYSQL_PASSWORD,
-            database: process.env.MYSQL_DATABASE
+            host: process.env.MYSQLHOST || process.env.MYSQL_HOST,
+            port: parseInt(process.env.MYSQLPORT || process.env.MYSQL_PORT || '3306'),
+            user: process.env.MYSQLUSER || process.env.MYSQL_USER,
+            password: process.env.MYSQLPASSWORD || process.env.MYSQL_PASSWORD || process.env.MYSQL_ROOT_PASSWORD,
+            database: process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE
         };
     }
 

@@ -16,8 +16,8 @@ require('dotenv').config();
 
 // Parse DATABASE_URL from .env
 const parseDatabaseUrl = (url) => {
-    // Format: mysql://username:password@host/database
-    const regex = /mysql:\/\/([^:]+):([^@]+)@([^/]+)\/(.+)/;
+    // Format: mysql://username:password@host:port/database
+    const regex = /mysql:\/\/([^:]+):([^@]+)@([^:]+):?(\d+)?\/(.+)/;
     const match = url.match(regex);
 
     if (!match) {
@@ -26,9 +26,10 @@ const parseDatabaseUrl = (url) => {
 
     return {
         user: match[1],
-        password: match[2],
+        password: decodeURIComponent(match[2]), // Decode password in case it has special characters
         host: match[3],
-        database: match[4]
+        port: match[4] ? parseInt(match[4]) : 3306,
+        database: match[5]
     };
 };
 
@@ -48,6 +49,7 @@ const setupDatabase = async () => {
         console.log('🔌 Connecting to MySQL server...');
         connection = await mysql.createConnection({
             host: dbConfig.host,
+            port: dbConfig.port,
             user: dbConfig.user,
             password: dbConfig.password,
             multipleStatements: true
