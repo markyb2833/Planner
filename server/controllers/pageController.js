@@ -250,21 +250,27 @@ const updatePageDefaults = async (req, res) => {
         if (default_card_font_size !== undefined) { updates.push('default_card_font_size = ?'); values.push(default_card_font_size); }
 
         if (updates.length === 0) {
+            console.log('No fields to update');
             return res.status(400).json({ error: 'No fields to update' });
         }
 
+        console.log('Updates to make:', updates);
+        console.log('Values:', values);
+
         // First, ensure page_defaults row exists (for older pages)
-        await pool.query(
+        const [insertResult] = await pool.query(
             'INSERT IGNORE INTO page_defaults (page_id) VALUES (?)',
             [id]
         );
+        console.log('INSERT IGNORE result:', insertResult);
 
         values.push(id);
 
-        await pool.query(
+        const [updateResult] = await pool.query(
             `UPDATE page_defaults SET ${updates.join(', ')} WHERE page_id = ?`,
             values
         );
+        console.log('UPDATE result:', updateResult);
 
         res.json({ message: 'Page defaults updated successfully' });
     } catch (error) {
