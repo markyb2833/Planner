@@ -15,21 +15,25 @@ const Minimap = ({ cards, page, zoom, pan, onJumpTo, canvasRef }) => {
         // Clear canvas
         ctx.clearRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
-        // Calculate scale
+        // Calculate scale to fill entire minimap while maintaining aspect ratio
         const canvasWidth = page.canvas_max_width || 5000;
         const canvasHeight = page.canvas_max_height || 5000;
         const scaleX = MINIMAP_WIDTH / canvasWidth;
         const scaleY = MINIMAP_HEIGHT / canvasHeight;
         const scale = Math.min(scaleX, scaleY);
 
-        // Draw canvas background (use page background color)
+        // Calculate actual rendered dimensions
+        const renderedWidth = canvasWidth * scale;
+        const renderedHeight = canvasHeight * scale;
+
+        // Draw canvas background (use page background color) - fill entire minimap
         ctx.fillStyle = page.background_color || '#ffffff';
-        ctx.fillRect(0, 0, canvasWidth * scale, canvasHeight * scale);
+        ctx.fillRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
         // Draw border around actual canvas area
         ctx.strokeStyle = '#e5e7eb';
         ctx.lineWidth = 2;
-        ctx.strokeRect(0, 0, canvasWidth * scale, canvasHeight * scale);
+        ctx.strokeRect(0, 0, renderedWidth, renderedHeight);
 
         // Draw cards
         cards.forEach(card => {

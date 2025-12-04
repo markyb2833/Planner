@@ -574,9 +574,9 @@ const CanvasBoardContent = () => {
                 icon: '🗑',
                 danger: true,
                 requiresCard: true,
-                onClick: () => {
+                onClick: async () => {
                     if (targetCard && window.confirm('Are you sure you want to delete this card?')) {
-                        handleCardDelete(targetCard);
+                        await handleCardDelete(targetCard);
                     }
                 }
             },
