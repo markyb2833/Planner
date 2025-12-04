@@ -1,39 +1,61 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import '../../styles/Minimap.css';
 
 const Minimap = ({ cards, page, zoom, pan, onJumpTo, canvasRef }) => {
     const minimapRef = useRef(null);
-    const MINIMAP_WIDTH = 200;
-    const MINIMAP_HEIGHT = 150;
+    const [minimapDimensions, setMinimapDimensions] = useState({ width: 200, height: 150 });
+
+    // Calculate minimap dimensions to match canvas aspect ratio
+    useEffect(() => {
+        if (!page) return;
+
+        const canvasWidth = page.canvas_max_width || 5000;
+        const canvasHeight = page.canvas_max_height || 5000;
+        const aspectRatio = canvasWidth / canvasHeight;
+
+        const MAX_WIDTH = 200;
+        const MAX_HEIGHT = 200;
+
+        let width, height;
+
+        if (aspectRatio > 1) {
+            // Landscape - width is limiting factor
+            width = MAX_WIDTH;
+            height = MAX_WIDTH / aspectRatio;
+        } else {
+            // Portrait or square - height is limiting factor
+            height = MAX_HEIGHT;
+            width = MAX_HEIGHT * aspectRatio;
+        }
+
+        setMinimapDimensions({ width: Math.round(width), height: Math.round(height) });
+    }, [page]);
 
     useEffect(() => {
         if (!minimapRef.current || !page) return;
 
         const canvas = minimapRef.current;
         const ctx = canvas.getContext('2d');
+        const { width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT } = minimapDimensions;
 
         // Clear canvas
         ctx.clearRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
-        // Calculate scale to fill entire minimap while maintaining aspect ratio
+        // Calculate scale
         const canvasWidth = page.canvas_max_width || 5000;
         const canvasHeight = page.canvas_max_height || 5000;
         const scaleX = MINIMAP_WIDTH / canvasWidth;
         const scaleY = MINIMAP_HEIGHT / canvasHeight;
         const scale = Math.min(scaleX, scaleY);
 
-        // Calculate actual rendered dimensions
-        const renderedWidth = canvasWidth * scale;
-        const renderedHeight = canvasHeight * scale;
-
-        // Draw canvas background (use page background color) - fill entire minimap
+        // Draw canvas background (use page background color)
         ctx.fillStyle = page.background_color || '#ffffff';
         ctx.fillRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
-        // Draw border around actual canvas area
+        // Draw border around canvas area
         ctx.strokeStyle = '#e5e7eb';
         ctx.lineWidth = 2;
-        ctx.strokeRect(0, 0, renderedWidth, renderedHeight);
+        ctx.strokeRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
         // Draw cards
         cards.forEach(card => {
@@ -66,7 +88,7 @@ const Minimap = ({ cards, page, zoom, pan, onJumpTo, canvasRef }) => {
             ctx.fillStyle = 'rgba(79, 70, 229, 0.1)';
             ctx.fillRect(viewX, viewY, viewW, viewH);
         }
-    }, [cards, page, zoom, pan, canvasRef]);
+    }, [cards, page, zoom, pan, canvasRef, minimapDimensions]);
 
     const handleMinimapClick = (e) => {
         if (!page || !canvasRef?.current) return;
@@ -77,6 +99,7 @@ const Minimap = ({ cards, page, zoom, pan, onJumpTo, canvasRef }) => {
 
         const canvasWidth = page.canvas_max_width || 5000;
         const canvasHeight = page.canvas_max_height || 5000;
+        const { width: MINIMAP_WIDTH, height: MINIMAP_HEIGHT } = minimapDimensions;
         const scaleX = MINIMAP_WIDTH / canvasWidth;
         const scaleY = MINIMAP_HEIGHT / canvasHeight;
         const scale = Math.min(scaleX, scaleY);
@@ -109,8 +132,8 @@ const Minimap = ({ cards, page, zoom, pan, onJumpTo, canvasRef }) => {
         <div className="minimap-container">
             <canvas
                 ref={minimapRef}
-                width={MINIMAP_WIDTH}
-                height={MINIMAP_HEIGHT}
+                width={minimapDimensions.width}
+                height={minimapDimensions.height}
                 onClick={handleMinimapClick}
                 className="minimap-canvas"
             />
