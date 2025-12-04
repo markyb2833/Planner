@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import { useDrag } from 'react-dnd';
 import { getEmptyImage } from 'react-dnd-html5-backend';
 import ImageGallery from '../common/ImageGallery';
@@ -261,7 +262,9 @@ const Card = ({ card, onMove, onUpdate, onDelete, onClick, onStartLink, linkingM
                                 className="card-action-btn delete-btn"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onDelete(card.id);
+                                    if (window.confirm('Are you sure you want to delete this card?')) {
+                                        onDelete(card.id);
+                                    }
                                 }}
                                 title="Delete card"
                             >
@@ -296,13 +299,14 @@ const Card = ({ card, onMove, onUpdate, onDelete, onClick, onStartLink, linkingM
                 </div>
             )}
             
-            {/* Image Gallery Modal */}
-            {showGallery && cardImages.length > 0 && (
+            {/* Image Gallery Modal - Render via portal for fullscreen */}
+            {showGallery && cardImages.length > 0 && ReactDOM.createPortal(
                 <ImageGallery
                     images={cardImages}
                     initialIndex={0}
                     onClose={() => setShowGallery(false)}
-                />
+                />,
+                document.body
             )}
         </div>
     );

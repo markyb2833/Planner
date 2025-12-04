@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/auth');
+const { inviteLimiter } = require('../middleware/rateLimiter');
 const {
     getPages,
     getPage,
@@ -37,7 +38,7 @@ router.post('/groups', createPageGroup);
 router.delete('/groups/:id', deletePageGroup);
 
 // Collaboration routes
-router.post('/:id/invite', inviteUser);
+router.post('/:id/invite', inviteLimiter, inviteUser);
 router.get('/invitations/pending', getPendingInvitations);
 router.post('/invitations/:id/respond', respondToInvitation);
 router.get('/:id/shared-users', getSharedUsers);

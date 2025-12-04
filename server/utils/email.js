@@ -2,14 +2,28 @@ const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 /**
- * Create email transporter using Gmail
+ * Create email transporter - supports Gmail or any SMTP service
  */
 const createTransporter = () => {
+    // If using Gmail service (simpler)
+    if (process.env.EMAIL_SERVICE === 'gmail') {
+        return nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER || process.env.GMAIL_USER,
+                pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD
+            }
+        });
+    }
+
+    // Otherwise use standard SMTP config (for SendGrid, Resend, etc.)
     return nodemailer.createTransport({
-        service: 'gmail',
+        host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+        port: parseInt(process.env.EMAIL_PORT || '587'),
+        secure: process.env.EMAIL_SECURE === 'true', // true for 465, false for other ports
         auth: {
-            user: process.env.GMAIL_USER,
-            pass: process.env.GMAIL_APP_PASSWORD
+            user: process.env.EMAIL_USER || process.env.GMAIL_USER,
+            pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD
         }
     });
 };
@@ -20,10 +34,12 @@ const createTransporter = () => {
 const sendPasswordResetEmail = async (email, username, resetToken) => {
     const transporter = createTransporter();
 
-    const resetUrl = `http://localhost:3000/reset-password?token=${resetToken}`;
+    // Use production URL or fall back to localhost for development
+    const baseUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+    const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
-        from: process.env.GMAIL_USER,
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER || process.env.GMAIL_USER,
         to: email,
         subject: 'Password Reset - Planner App',
         html: `
@@ -59,10 +75,12 @@ const sendPasswordResetEmail = async (email, username, resetToken) => {
 const sendPageInvitationEmail = async (recipientEmail, recipientUsername, inviterUsername, pageName) => {
     const transporter = createTransporter();
 
-    const acceptUrl = `http://localhost:3000/invitations`;
+    // Use production URL or fall back to localhost for development
+    const baseUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+    const acceptUrl = `${baseUrl}/invitations`;
 
     const mailOptions = {
-        from: process.env.GMAIL_USER,
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER || process.env.GMAIL_USER,
         to: recipientEmail,
         subject: `${inviterUsername} invited you to collaborate on "${pageName}"`,
         html: `

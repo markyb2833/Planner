@@ -11,6 +11,7 @@ import CustomDragLayer from '../card/CustomDragLayer';
 import PageSettings from './PageSettings';
 import ShareModal from '../common/ShareModal';
 import ActiveUsers from '../common/ActiveUsers';
+import ContextMenu from './ContextMenu';
 import '../../styles/Canvas.css';
 
 const CanvasBoardContent = () => {
@@ -32,6 +33,10 @@ const CanvasBoardContent = () => {
     const [showShareModal, setShowShareModal] = useState(false);
     const [linkingMode, setLinkingMode] = useState(false);
     const [linkStart, setLinkStart] = useState(null);
+
+    // Context menu state
+    const [contextMenu, setContextMenu] = useState(null);
+    const [hoveredCard, setHoveredCard] = useState(null);
 
     // Zoom and pan state
     const [zoom, setZoom] = useState(1);
@@ -309,6 +314,55 @@ const CanvasBoardContent = () => {
         }
     };
 
+    const handleCreateCard = async (cardType, x = 100, y = 100) => {
+        try {
+            const newCard = {
+                title: `New ${cardType} Card`,
+                card_type: cardType,
+                x_position: x,
+                y_position: y,
+                width: pageDefaults?.default_card_width || 300,
+                height: pageDefaults?.default_card_height || 200,
+                background_color: pageDefaults?.default_card_color || '#ffffff',
+                text_color: pageDefaults?.default_text_color || '#000000',
+                font_size: pageDefaults?.default_font_size || 14,
+                content: '',
+                list_items: cardType === 'list' ? '[]' : null,
+                z_index: Math.max(...cards.map(c => c.z_index || 0), 0) + 1
+            };
+
+            const response = await cardsAPI.createCard(pageId, newCard);
+            const createdCard = { ...newCard, id: response.data.cardId };
+            setCards(prev => [...prev, createdCard]);
+            socketService.emitCardCreated(pageId, createdCard);
+        } catch (error) {
+            console.error('Failed to create card:', error);
+        }
+    };
+
+    const handleDuplicateCard = async (cardId) => {
+        try {
+            const originalCard = cards.find(c => c.id === cardId);
+            if (!originalCard) return;
+
+            const duplicateCard = {
+                ...originalCard,
+                id: undefined,
+                title: `${originalCard.title} (Copy)`,
+                x_position: originalCard.x_position + 20,
+                y_position: originalCard.y_position + 20,
+                z_index: Math.max(...cards.map(c => c.z_index || 0), 0) + 1
+            };
+
+            const response = await cardsAPI.createCard(pageId, duplicateCard);
+            const createdCard = { ...duplicateCard, id: response.data.cardId };
+            setCards(prev => [...prev, createdCard]);
+            socketService.emitCardCreated(pageId, createdCard);
+        } catch (error) {
+            console.error('Failed to duplicate card:', error);
+        }
+    };
+
     // Link operations
     const handleStartLinking = (cardId) => {
         setLinkingMode(true);
@@ -368,7 +422,16 @@ const CanvasBoardContent = () => {
         }
     }, [zoom]);
 
+    const handleContextMenu = useCallback((e) => {
+        e.preventDefault();
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY
+        });
+    }, []);
+
     const handleMouseDown = useCallback((e) => {
+        // Middle-click (button 1) or Alt+left-click for panning
         if (e.button === 1 || (e.button === 0 && e.altKey)) {
             e.preventDefault();
             setIsPanning(true);
@@ -377,13 +440,40 @@ const CanvasBoardContent = () => {
     }, [pan]);
 
     const handleMouseMove = useCallback((e) => {
-        if (isPanning) {
+        if (isPanning && page) {
+            const maxWidth = page.canvas_max_width || 5000;
+            const maxHeight = page.canvas_max_height || 5000;
+
+            // Calculate new pan position
+            const newX = e.clientX - panStart.x;
+            const newY = e.clientY - panStart.y;
+
+            // Get viewport dimensions
+            const viewportWidth = canvasRef.current?.clientWidth || window.innerWidth;
+            const viewportHeight = canvasRef.current?.clientHeight || window.innerHeight;
+
+            // Calculate scaled canvas dimensions
+            const scaledWidth = maxWidth * zoom;
+            const scaledHeight = maxHeight * zoom;
+
+            // Calculate min/max pan values to keep canvas visible
+            // Max pan is 0 (canvas at top-left of viewport)
+            // Min pan is when canvas bottom-right aligns with viewport bottom-right
+            const minX = Math.min(0, viewportWidth - scaledWidth);
+            const minY = Math.min(0, viewportHeight - scaledHeight);
+            const maxX = 0;
+            const maxY = 0;
+
+            // Clamp pan values
+            const clampedX = Math.max(minX, Math.min(maxX, newX));
+            const clampedY = Math.max(minY, Math.min(maxY, newY));
+
             setPan({
-                x: e.clientX - panStart.x,
-                y: e.clientY - panStart.y
+                x: clampedX,
+                y: clampedY
             });
         }
-    }, [isPanning, panStart]);
+    }, [isPanning, panStart, page, zoom]);
 
     const handleMouseUp = useCallback(() => {
         setIsPanning(false);
@@ -392,6 +482,63 @@ const CanvasBoardContent = () => {
     const resetView = () => {
         setZoom(1);
         setPan({ x: 0, y: 0 });
+    };
+
+    // Context menu options
+    const getContextMenuOptions = () => {
+        // Calculate canvas-relative position for new cards
+        const canvasX = contextMenu ? (contextMenu.x - pan.x) / zoom : 0;
+        const canvasY = contextMenu ? (contextMenu.y - pan.y) / zoom : 0;
+
+        return [
+            {
+                label: 'Add Text Card',
+                icon: '📝',
+                onClick: () => handleCreateCard('text', canvasX, canvasY)
+            },
+            {
+                label: 'Add List Card',
+                icon: '☑',
+                onClick: () => handleCreateCard('list', canvasX, canvasY)
+            },
+            {
+                label: 'Add Image Card',
+                icon: '🖼',
+                onClick: () => handleCreateCard('image', canvasX, canvasY)
+            },
+            {
+                divider: true,
+                label: 'Link to Card',
+                icon: '🔗',
+                requiresCard: true,
+                onClick: () => {
+                    if (hoveredCard) {
+                        handleStartLinking(hoveredCard);
+                    }
+                }
+            },
+            {
+                label: 'Duplicate Card',
+                icon: '📋',
+                requiresCard: true,
+                onClick: () => {
+                    if (hoveredCard) {
+                        handleDuplicateCard(hoveredCard);
+                    }
+                }
+            },
+            {
+                label: 'Delete Card',
+                icon: '🗑',
+                danger: true,
+                requiresCard: true,
+                onClick: () => {
+                    if (hoveredCard && window.confirm('Are you sure you want to delete this card?')) {
+                        handleCardDelete(hoveredCard);
+                    }
+                }
+            }
+        ];
     };
 
     if (loading) {
@@ -549,6 +696,7 @@ const CanvasBoardContent = () => {
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={handleMouseUp}
+                    onContextMenu={handleContextMenu}
                     style={{
                         backgroundColor: page.background_color || '#FFFFFF',
                         backgroundImage: page.background_image ? `url(${page.background_image})` : 'none',
@@ -615,24 +763,29 @@ const CanvasBoardContent = () => {
 
                         {/* Render cards */}
                         {cards.map(card => (
-                            <Card
+                            <div
                                 key={card.id}
-                                card={card}
-                                onMove={handleCardMove}
-                                onUpdate={handleCardUpdate}
-                                onDelete={handleCardDelete}
-                                onClick={() => {
-                                    if (linkingMode) {
-                                        handleCompleteLinking(card.id);
-                                    } else {
-                                        setSelectedCard(card);
-                                        setShowCardModal(true);
-                                    }
-                                }}
-                                onStartLink={handleStartLinking}
-                                linkingMode={linkingMode}
-                                zoom={zoom}
-                            />
+                                onMouseEnter={() => setHoveredCard(card.id)}
+                                onMouseLeave={() => setHoveredCard(null)}
+                            >
+                                <Card
+                                    card={card}
+                                    onMove={handleCardMove}
+                                    onUpdate={handleCardUpdate}
+                                    onDelete={handleCardDelete}
+                                    onClick={() => {
+                                        if (linkingMode) {
+                                            handleCompleteLinking(card.id);
+                                        } else {
+                                            setSelectedCard(card);
+                                            setShowCardModal(true);
+                                        }
+                                    }}
+                                    onStartLink={handleStartLinking}
+                                    linkingMode={linkingMode}
+                                    zoom={zoom}
+                                />
+                            </div>
                         ))}
                     </div>
                 </div>
@@ -681,6 +834,17 @@ const CanvasBoardContent = () => {
                         }}
                         currentUserId={user.id}
                         isOwner={page.owner_id === user.id}
+                    />
+                )}
+
+                {/* Context Menu */}
+                {contextMenu && (
+                    <ContextMenu
+                        x={contextMenu.x}
+                        y={contextMenu.y}
+                        onClose={() => setContextMenu(null)}
+                        options={getContextMenuOptions()}
+                        hoveredCard={hoveredCard}
                     />
                 )}
         </div>
