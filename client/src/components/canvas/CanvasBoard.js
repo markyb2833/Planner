@@ -294,15 +294,69 @@ const CanvasBoardContent = () => {
         }
     };
 
+    // Find empty space for a new card
+    const findEmptySpace = (preferredX, preferredY, width, height) => {
+        const cardWidth = width || pageDefaults?.default_card_width || 300;
+        const cardHeight = height || pageDefaults?.default_card_height || 200;
+        const padding = 20;
+
+        // Check if a position overlaps with existing cards
+        const overlaps = (x, y) => {
+            return cards.some(card => {
+                const cardRight = card.x_position + card.width;
+                const cardBottom = card.y_position + card.height;
+                const newRight = x + cardWidth;
+                const newBottom = y + cardHeight;
+
+                return !(x >= cardRight || newRight <= card.x_position ||
+                         y >= cardBottom || newBottom <= card.y_position);
+            });
+        };
+
+        // Try preferred position first
+        if (!overlaps(preferredX, preferredY)) {
+            return { x: preferredX, y: preferredY };
+        }
+
+        // Calculate viewport bounds
+        const viewportX = (-pan.x / zoom);
+        const viewportY = (-pan.y / zoom);
+        const viewportWidth = (canvasRef.current?.clientWidth || 1000) / zoom;
+        const viewportHeight = (canvasRef.current?.clientHeight || 800) / zoom;
+
+        // Try to find empty space in current viewport
+        const gridSize = 50;
+        for (let offsetY = 0; offsetY < viewportHeight; offsetY += gridSize) {
+            for (let offsetX = 0; offsetX < viewportWidth; offsetX += gridSize) {
+                const testX = viewportX + offsetX;
+                const testY = viewportY + offsetY;
+
+                if (!overlaps(testX, testY)) {
+                    return { x: testX, y: testY };
+                }
+            }
+        }
+
+        // If no empty space found in viewport, return preferred position anyway
+        // (card will overlap but stay in viewport)
+        return { x: preferredX, y: preferredY };
+    };
+
     const handleCreateCard = async (cardType, x = 100, y = 100) => {
         try {
+            const cardWidth = pageDefaults?.default_card_width || 300;
+            const cardHeight = pageDefaults?.default_card_height || 200;
+
+            // Find empty space near the preferred position
+            const { x: finalX, y: finalY } = findEmptySpace(x, y, cardWidth, cardHeight);
+
             const newCard = {
                 title: `New ${cardType} Card`,
                 card_type: cardType,
-                x_position: x,
-                y_position: y,
-                width: pageDefaults?.default_card_width || 300,
-                height: pageDefaults?.default_card_height || 200,
+                x_position: finalX,
+                y_position: finalY,
+                width: cardWidth,
+                height: cardHeight,
                 background_color: pageDefaults?.default_card_color || '#ffffff',
                 text_color: pageDefaults?.default_text_color || '#000000',
                 font_size: pageDefaults?.default_font_size || 14,

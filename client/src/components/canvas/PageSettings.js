@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { pagesAPI } from '../../services/api';
 import ImageUpload from '../common/ImageUpload';
 
 const PageSettings = ({ page, defaults, onClose, onUpdate }) => {
+    const mouseDownPosRef = useRef(null);
     const [pageSettings, setPageSettings] = useState({
         name: page.name || '',
         background_color: page.background_color || '#FFFFFF',
@@ -81,8 +82,28 @@ const PageSettings = ({ page, defaults, onClose, onUpdate }) => {
         { label: 'Extra Large', width: 20000, height: 20000 }
     ];
 
+    const handleOverlayMouseDown = (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+        }
+    };
+
+    const handleOverlayClick = (e) => {
+        if (e.target.classList.contains('modal-overlay') && mouseDownPosRef.current) {
+            const dragDistance = Math.sqrt(
+                Math.pow(e.clientX - mouseDownPosRef.current.x, 2) +
+                Math.pow(e.clientY - mouseDownPosRef.current.y, 2)
+            );
+
+            if (dragDistance < 5) {
+                onClose();
+            }
+        }
+        mouseDownPosRef.current = null;
+    };
+
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
             <div className="settings-modal-modern" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="settings-header">

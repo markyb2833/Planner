@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ImageUpload from '../common/ImageUpload';
 import ImageGallery from '../common/ImageGallery';
 
 const CardModal = ({ card, onClose, onUpdate, onDelete, pageId }) => {
     const [activeTab, setActiveTab] = useState('content');
+    const mouseDownPosRef = useRef(null);
     const [formData, setFormData] = useState({
         title: card.title || '',
         content: card.content || '',
@@ -152,8 +153,29 @@ const CardModal = ({ card, onClose, onUpdate, onDelete, pageId }) => {
         '#E2D9F3', '#F5C6CB', '#1a1a2e', '#16213e', '#0f3460'
     ];
 
+    const handleOverlayMouseDown = (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+        }
+    };
+
+    const handleOverlayClick = (e) => {
+        if (e.target.classList.contains('modal-overlay') && mouseDownPosRef.current) {
+            const dragDistance = Math.sqrt(
+                Math.pow(e.clientX - mouseDownPosRef.current.x, 2) +
+                Math.pow(e.clientY - mouseDownPosRef.current.y, 2)
+            );
+
+            // Only close if drag distance is less than 5 pixels
+            if (dragDistance < 5) {
+                onClose();
+            }
+        }
+        mouseDownPosRef.current = null;
+    };
+
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
             <div className="card-modal-modern" onClick={(e) => e.stopPropagation()}>
                 {/* Header */}
                 <div className="modal-header-modern">

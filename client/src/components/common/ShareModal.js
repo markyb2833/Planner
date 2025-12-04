@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { authAPI, pagesAPI } from '../../services/api';
 import socketService from '../../services/socket';
 
@@ -18,6 +18,7 @@ const maskEmail = (email) => {
 const ShareModal = ({ page, onClose, onShare, currentUserId, isOwner }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
+    const mouseDownPosRef = useRef(null);
     const [isSearching, setIsSearching] = useState(false);
     const [selectedUser, setSelectedUser] = useState(null);
     const [permissionLevel, setPermissionLevel] = useState('view');
@@ -150,8 +151,28 @@ const ShareModal = ({ page, onClose, onShare, currentUserId, isOwner }) => {
         }
     };
 
+    const handleOverlayMouseDown = (e) => {
+        if (e.target.classList.contains('share-modal-overlay')) {
+            mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+        }
+    };
+
+    const handleOverlayClick = (e) => {
+        if (e.target.classList.contains('share-modal-overlay') && mouseDownPosRef.current) {
+            const dragDistance = Math.sqrt(
+                Math.pow(e.clientX - mouseDownPosRef.current.x, 2) +
+                Math.pow(e.clientY - mouseDownPosRef.current.y, 2)
+            );
+
+            if (dragDistance < 5) {
+                onClose();
+            }
+        }
+        mouseDownPosRef.current = null;
+    };
+
     return (
-        <div className="share-modal-overlay" onClick={onClose}>
+        <div className="share-modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
             <div className="share-modal" onClick={e => e.stopPropagation()}>
                 <div className="share-modal-header">
                     <div className="share-header-content">

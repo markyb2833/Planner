@@ -22,14 +22,14 @@ const Minimap = ({ cards, page, zoom, pan, onJumpTo, canvasRef }) => {
         const scaleY = MINIMAP_HEIGHT / canvasHeight;
         const scale = Math.min(scaleX, scaleY);
 
-        // Draw background
-        ctx.fillStyle = '#f9fafb';
-        ctx.fillRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
+        // Draw canvas background (use page background color)
+        ctx.fillStyle = page.background_color || '#ffffff';
+        ctx.fillRect(0, 0, canvasWidth * scale, canvasHeight * scale);
 
-        // Draw border
+        // Draw border around actual canvas area
         ctx.strokeStyle = '#e5e7eb';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, canvasWidth * scale, canvasHeight * scale);
 
         // Draw cards
         cards.forEach(card => {
@@ -84,8 +84,17 @@ const Minimap = ({ cards, page, zoom, pan, onJumpTo, canvasRef }) => {
         // Calculate viewport center offset
         const viewportWidth = canvasRef.current.clientWidth;
         const viewportHeight = canvasRef.current.clientHeight;
-        const centerX = targetX - (viewportWidth / zoom) / 2;
-        const centerY = targetY - (viewportHeight / zoom) / 2;
+        let centerX = targetX - (viewportWidth / zoom) / 2;
+        let centerY = targetY - (viewportHeight / zoom) / 2;
+
+        // Clamp to canvas boundaries to prevent panning off edge
+        const minX = 0;
+        const minY = 0;
+        const maxX = Math.max(0, canvasWidth - viewportWidth / zoom);
+        const maxY = Math.max(0, canvasHeight - viewportHeight / zoom);
+
+        centerX = Math.max(minX, Math.min(maxX, centerX));
+        centerY = Math.max(minY, Math.min(maxY, centerY));
 
         onJumpTo(centerX, centerY);
     };
