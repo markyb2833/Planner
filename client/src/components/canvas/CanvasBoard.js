@@ -250,30 +250,6 @@ const CanvasBoardContent = () => {
     };
 
     // Card operations
-    const handleCreateCard = async (type = 'text') => {
-        try {
-            const newCard = {
-                card_type: type,
-                x_position: (-pan.x + 100) / zoom,
-                y_position: (-pan.y + 100) / zoom,
-                width: pageDefaults?.default_card_width || 200,
-                height: pageDefaults?.default_card_height || 150,
-                background_color: pageDefaults?.default_card_background_color || '#FFFFFF',
-                title: 'New Card',
-                content: ''
-            };
-
-            const response = await cardsAPI.createCard(pageId, newCard);
-            const createdCard = response.data.card;
-
-            setCards(prev => [...prev, createdCard]);
-            socketService.emitCardCreated(pageId, createdCard);
-        } catch (error) {
-            console.error('Failed to create card:', error);
-            alert('Failed to create card');
-        }
-    };
-
     const handleCardMove = async (cardId, x, y) => {
         try {
             // Update local state immediately for responsiveness
