@@ -12,6 +12,7 @@ import PageSettings from './PageSettings';
 import ShareModal from '../common/ShareModal';
 import ActiveUsers from '../common/ActiveUsers';
 import ContextMenu from './ContextMenu';
+import Minimap from './Minimap';
 import '../../styles/Canvas.css';
 
 const CanvasBoardContent = () => {
@@ -37,6 +38,9 @@ const CanvasBoardContent = () => {
     // Context menu state
     const [contextMenu, setContextMenu] = useState(null);
     const [hoveredCard, setHoveredCard] = useState(null);
+
+    // Focus mode state
+    const [focusMode, setFocusMode] = useState(false);
 
     // Zoom and pan state
     const [zoom, setZoom] = useState(1);
@@ -402,9 +406,10 @@ const CanvasBoardContent = () => {
         e.preventDefault();
         setContextMenu({
             x: e.clientX,
-            y: e.clientY
+            y: e.clientY,
+            targetCard: hoveredCard // Capture the card at menu open time
         });
-    }, []);
+    }, [hoveredCard]);
 
     const handleMouseDown = useCallback((e) => {
         // Middle-click (button 1) or Alt+left-click for panning
@@ -460,11 +465,19 @@ const CanvasBoardContent = () => {
         setPan({ x: 0, y: 0 });
     };
 
+    const handleJumpTo = useCallback((x, y) => {
+        setPan({
+            x: -x * zoom,
+            y: -y * zoom
+        });
+    }, [zoom]);
+
     // Context menu options
     const getContextMenuOptions = () => {
         // Calculate canvas-relative position for new cards
         const canvasX = contextMenu ? (contextMenu.x - pan.x) / zoom : 0;
         const canvasY = contextMenu ? (contextMenu.y - pan.y) / zoom : 0;
+        const targetCard = contextMenu?.targetCard;
 
         return [
             {
@@ -488,8 +501,8 @@ const CanvasBoardContent = () => {
                 icon: '🔗',
                 requiresCard: true,
                 onClick: () => {
-                    if (hoveredCard) {
-                        handleStartLinking(hoveredCard);
+                    if (targetCard) {
+                        handleStartLinking(targetCard);
                     }
                 }
             },
@@ -498,8 +511,8 @@ const CanvasBoardContent = () => {
                 icon: '📋',
                 requiresCard: true,
                 onClick: () => {
-                    if (hoveredCard) {
-                        handleDuplicateCard(hoveredCard);
+                    if (targetCard) {
+                        handleDuplicateCard(targetCard);
                     }
                 }
             },
@@ -509,10 +522,16 @@ const CanvasBoardContent = () => {
                 danger: true,
                 requiresCard: true,
                 onClick: () => {
-                    if (hoveredCard && window.confirm('Are you sure you want to delete this card?')) {
-                        handleCardDelete(hoveredCard);
+                    if (targetCard && window.confirm('Are you sure you want to delete this card?')) {
+                        handleCardDelete(targetCard);
                     }
                 }
+            },
+            {
+                divider: true,
+                label: focusMode ? 'Exit Focus Mode' : 'Focus Mode',
+                icon: focusMode ? '🔍' : '🎯',
+                onClick: () => setFocusMode(!focusMode)
             }
         ];
     };
@@ -526,11 +545,12 @@ const CanvasBoardContent = () => {
     }
 
     return (
-        <div className="canvas-container">
+        <div className={`canvas-container ${focusMode ? 'focus-mode' : ''}`}>
                 {/* Custom Drag Layer for visual feedback */}
                 <CustomDragLayer cards={cards} zoom={zoom} canvasBounds={canvasBounds} />
 
                 {/* Modern Toolbar */}
+                {!focusMode && (
                 <div className="canvas-toolbar-modern">
                     <div className="toolbar-left">
                         <button onClick={() => navigate('/')} className="toolbar-back-btn" title="Back to Dashboard">
@@ -651,9 +671,10 @@ const CanvasBoardContent = () => {
                         </button>
                     </div>
                 </div>
+                )}
 
                 {/* Link Mode Banner */}
-                {linkingMode && (
+                {linkingMode && !focusMode && (
                     <div className="link-mode-banner">
                         <span className="link-icon">🔗</span>
                         <span>Click on a card to create a connection{linkStart ? ' (source selected)' : ''}</span>
@@ -820,9 +841,19 @@ const CanvasBoardContent = () => {
                         y={contextMenu.y}
                         onClose={() => setContextMenu(null)}
                         options={getContextMenuOptions()}
-                        hoveredCard={hoveredCard}
+                        hoveredCard={contextMenu.targetCard}
                     />
                 )}
+
+                {/* Minimap */}
+                <Minimap
+                    cards={cards}
+                    page={page}
+                    zoom={zoom}
+                    pan={pan}
+                    onJumpTo={handleJumpTo}
+                    canvasRef={canvasRef}
+                />
         </div>
     );
 };

@@ -1,0 +1,31 @@
+.minimap-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 8px;
+    z-index: 1000;
+    transition: opacity 0.2s ease;
+}
+
+.minimap-container:hover {
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.minimap-canvas {
+    display: block;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.minimap-canvas:hover {
+    opacity: 0.95;
+}
+
+/* Hide minimap in focus mode */
+.focus-mode .minimap-container {
+    opacity: 0;
+    pointer-events: none;
+}

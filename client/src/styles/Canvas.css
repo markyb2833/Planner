@@ -683,3 +683,16 @@
         height: 38px;
     }
 }
+
+/* Focus Mode */
+.focus-mode .canvas-toolbar-modern {
+    display: none;
+}
+
+.focus-mode .link-mode-banner {
+    display: none;
+}
+
+.focus-mode .canvas-workspace {
+    height: 100vh;
+}
