@@ -192,19 +192,23 @@ const Card = ({ card, onMove, onUpdate, onDelete, onClick, onStartLink, linkingM
                     console.warn('Failed to parse list items:', e);
                     listItems = [];
                 }
+
+                // Sort list items: uncompleted first, then completed
+                const sortedListItems = [...listItems].sort((a, b) => {
+                    if (a.completed === b.completed) return 0;
+                    return a.completed ? 1 : -1;
+                });
+
                 return (
                     <div className="card-list-content">
-                        {listItems.length > 0 ? (
+                        {sortedListItems.length > 0 ? (
                             <ul className="card-list" style={{ color: card.text_color }}>
-                                {listItems.slice(0, 5).map((item, index) => (
+                                {sortedListItems.map((item, index) => (
                                     <li key={index} className={item.completed ? 'completed' : ''}>
                                         <span className="list-checkbox">{item.completed ? '☑' : '☐'}</span>
                                         <span className="list-text">{item.text}</span>
                                     </li>
                                 ))}
-                                {listItems.length > 5 && (
-                                    <li className="list-more">+{listItems.length - 5} more...</li>
-                                )}
                             </ul>
                         ) : (
                             <div className="card-list-empty">Empty list</div>
