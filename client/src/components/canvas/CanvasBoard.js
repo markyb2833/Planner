@@ -298,7 +298,6 @@ const CanvasBoardContent = () => {
     const findEmptySpace = (preferredX, preferredY, width, height) => {
         const cardWidth = width || pageDefaults?.default_card_width || 300;
         const cardHeight = height || pageDefaults?.default_card_height || 200;
-        const padding = 20;
 
         // Check if a position overlaps with existing cards
         const overlaps = (x, y) => {
